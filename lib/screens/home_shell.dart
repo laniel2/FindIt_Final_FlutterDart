@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'trash_screen.dart';
 import 'items_view.dart';
 import 'profile_tab.dart';
 
@@ -17,7 +18,23 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_index])),
+      appBar: AppBar(
+        title: Text(_titles[_index]),
+        actions: [
+          if (_index == 1)
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('Recently Deleted'),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const TrashScreen(),
+                ),
+              ),
+            ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),

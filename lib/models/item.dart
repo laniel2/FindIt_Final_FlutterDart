@@ -27,6 +27,7 @@ class Item {
   final String contact;
   final DateTime createdAt;
   final bool resolved;
+  final DateTime? deletedAt;
 
   const Item({
     required this.id,
@@ -41,12 +42,13 @@ class Item {
     required this.contact,
     required this.createdAt,
     this.resolved = false,
+    this.deletedAt,
   });
 
   bool get isLost => type == ItemType.lost;
   bool get hasNetworkImage => image != null && image!.startsWith('http');
 
-  Item copyWith({bool? resolved}) => Item(
+  Item copyWith({bool? resolved, DateTime? deletedAt, bool clearDeletedAt = false}) => Item(
         id: id,
         title: title,
         description: description,
@@ -59,6 +61,7 @@ class Item {
         contact: contact,
         createdAt: createdAt,
         resolved: resolved ?? this.resolved,
+        deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       );
 
   Map<String, dynamic> toJson() => {
@@ -74,6 +77,7 @@ class Item {
         'contact': contact,
         'createdAt': createdAt.toIso8601String(),
         'resolved': resolved,
+        'deletedAt': deletedAt?.toIso8601String(),
       };
 
   factory Item.fromJson(Map<String, dynamic> j) => Item(
@@ -90,5 +94,6 @@ class Item {
         createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ??
             DateTime.now(),
         resolved: (j['resolved'] ?? false) as bool,
+        deletedAt: DateTime.tryParse(j['deletedAt'] as String? ?? ''),
       );
 }

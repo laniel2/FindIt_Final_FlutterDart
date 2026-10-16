@@ -33,6 +33,7 @@ class ItemRepository {
 
   static const _itemsKey = 'items';
   static const _seededKey = 'items_seeded_from_api';
+  static const deletedRetentionDays = 30;
 
   /// Screens listen to this and reload whenever data changes.
   final ValueNotifier<int> changes = ValueNotifier<int>(0);
@@ -121,9 +122,38 @@ class ItemRepository {
     changes.value++;
   }
 
+  Future<void> _purgeExpired() async {
+    final items = await _readAll();
+    final now = DateTime.now();
+    final expired = items.where((item) {
+      final deletedAt = item.deletedAt;
+      return deletedAt != null &&
+          now.difference(deletedAt) >=
+              const Duration(days: deletedRetentionDays);
+    }).toList();
+    if (expired.isEmpty) return;
+
+    final expiredIds = expired.map((item) => item.id).toSet();
+    await _writeAll(items.where((item) => !expiredIds.contains(item.id)).toList());
+    for (final item in expired) {
+      await _removeStoredImage(item);
+    }
+  }
+
+  Future<void> _removeStoredImage(Item item) async {
+    if (item.image == null ||
+        item.hasNetworkImage ||
+        !isLocalFilePath(item.image)) {
+      return;
+    }
+    final file = File(item.image!);
+    if (await file.exists()) await file.delete();
+  }
+
   /// Loads all items. On first run (or until it succeeds) it also tries to
   /// download starter reports from the API and saves them locally.
   Future<LoadResult> loadItems() async {
+    await _purgeExpired();
     final prefs = await SharedPreferences.getInstance();
     String? warning;
     if (!(prefs.getBool(_seededKey) ?? false)) {
@@ -138,13 +168,23 @@ class ItemRepository {
         warning = e.message;
       }
     }
-    final items = await _readAll();
+    final items = (await _readAll()).where((item) => item.deletedAt == null).toList();
     if (items.isEmpty && warning != null) throw ApiException(warning);
     return LoadResult(items, warning);
   }
 
   /// Reads stored items without contacting the API (used for profile stats).
-  Future<List<Item>> readLocal() => _readAll();
+  Future<List<Item>> readLocal() async {
+    await _purgeExpired();
+    return (await _readAll()).where((item) => item.deletedAt == null).toList();
+  }
+
+  Future<List<Item>> readDeleted() async {
+    await _purgeExpired();
+    return (await _readAll())
+        .where((item) => item.deletedAt != null)
+        .toList();
+  }
 
   Future<void> add(Item item) async {
     final items = await _readAll();
@@ -172,17 +212,27 @@ class ItemRepository {
 
   Future<void> delete(String id) async {
     final items = await _readAll();
-    final target = items.where((i) => i.id == id).firstOrNull;
-    items.removeWhere((i) => i.id == id);
-    // Remove the stored photo too, if it was a local file.
-    if (target != null &&
-        target.image != null &&
-        !target.hasNetworkImage &&
-        isLocalFilePath(target.image)) {
-      final f = File(target.image!);
-      if (await f.exists()) await f.delete();
-    }
+    final index = items.indexWhere((item) => item.id == id);
+    if (index == -1 || items[index].deletedAt != null) return;
+    items[index] = items[index].copyWith(deletedAt: DateTime.now());
     await _writeAll(items);
+  }
+
+  Future<void> restore(String id) async {
+    final items = await _readAll();
+    final index = items.indexWhere((item) => item.id == id);
+    if (index == -1 || items[index].deletedAt == null) return;
+    items[index] = items[index].copyWith(clearDeletedAt: true);
+    await _writeAll(items);
+  }
+
+  Future<void> permanentlyDelete(String id) async {
+    final items = await _readAll();
+    final target = items.where((item) => item.id == id).firstOrNull;
+    if (target == null) return;
+    items.removeWhere((item) => item.id == id);
+    await _writeAll(items);
+    await _removeStoredImage(target);
   }
 
   Future<void> toggleResolved(String id) async {

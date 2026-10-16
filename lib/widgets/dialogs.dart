@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import '../models/item.dart';
 import '../services/item_repository.dart';
 
-/// Asks for confirmation, then deletes the report and shows feedback.
-/// Returns true if the item was deleted.
+/// Asks for confirmation, then moves the report to Recently Deleted.
+/// Returns true if the item was moved to the trash.
 Future<bool> confirmAndDeleteItem(BuildContext context, Item item) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       icon: const Icon(Icons.delete_forever, color: Colors.red, size: 40),
-      title: const Text('Delete this report?'),
+      title: const Text('Move this report to Recently Deleted?'),
       content: Text(
-          '"${item.title}" will be permanently removed. This cannot be undone.'),
+          'You can restore "${item.title}" for 30 days before it is permanently deleted.'),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -19,7 +19,7 @@ Future<bool> confirmAndDeleteItem(BuildContext context, Item item) async {
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
           onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Delete'),
+          child: const Text('Move to Recently Deleted'),
         ),
       ],
     ),
@@ -28,7 +28,7 @@ Future<bool> confirmAndDeleteItem(BuildContext context, Item item) async {
   await ItemRepository.instance.delete(item.id);
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${item.title}" was deleted.')));
+        SnackBar(content: Text('"${item.title}" moved to Recently Deleted.')));
   }
   return true;
 }

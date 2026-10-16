@@ -73,12 +73,12 @@ class ItemCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isOwner) ...[
-                IconButton(
-                  tooltip: 'Delete report',
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => onMenu(ItemMenuAction.delete),
-                ),
+              IconButton(
+                tooltip: 'Delete report',
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: () => onMenu(ItemMenuAction.delete),
+              ),
+              if (isOwner)
                 PopupMenuButton<ItemMenuAction>(
                   tooltip: 'More options',
                   onSelected: onMenu,
@@ -95,7 +95,6 @@ class ItemCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              ],
             ],
           ),
         ),
