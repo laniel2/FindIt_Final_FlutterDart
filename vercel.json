@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "installCommand": "bash -lc 'curl -L https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.27.4-stable.tar.xz -o flutter.tar.xz && tar -xf flutter.tar.xz && export PATH=\"$PATH:$PWD/flutter/bin\" && git config --global --add safe.directory \"$PWD/flutter\" && flutter --version && flutter pub get'",
-  "buildCommand": "bash -lc 'export PATH=\"$PATH:$PWD/flutter/bin\" && flutter build web --release'",
+  "installCommand": "bash scripts/vercel-build.sh install",
+  "buildCommand": "bash scripts/vercel-build.sh build",
   "outputDirectory": "build/web",
   "routes": [
     { "handle": "filesystem" },
