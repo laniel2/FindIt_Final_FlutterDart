@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/item.dart';
 import '../services/auth_service.dart';
@@ -9,6 +8,8 @@ import '../widgets/dialogs.dart';
 import '../widgets/info_row.dart';
 import '../widgets/item_image.dart';
 import '../widgets/type_badge.dart';
+import 'add_item_screen.dart';
+import 'contact_screen.dart';
 
 class ItemDetailScreen extends StatefulWidget {
   final Item item;
@@ -39,11 +40,26 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     if (deleted && mounted) Navigator.pop(context);
   }
 
-  Future<void> _copyContact() async {
-    await Clipboard.setData(ClipboardData(text: _item.contact));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Contact copied to clipboard')));
+  Future<void> _edit() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => AddItemScreen(item: _item),
+      ),
+    );
+    if (saved != true || !mounted) return;
+    final items = await ItemRepository.instance.readLocal();
+    final updated = items.where((item) => item.id == _item.id).firstOrNull;
+    if (updated != null && mounted) setState(() => _item = updated);
+  }
+
+  void _contactOwner() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ContactScreen(item: _item),
+      ),
+    );
   }
 
   @override
@@ -111,13 +127,19 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             const SizedBox(height: 16),
             if (_item.contact.isNotEmpty)
               ElevatedButton.icon(
-                onPressed: _copyContact,
-                icon: const Icon(Icons.copy),
-                label: Text(_item.isLost
-                    ? 'Copy contact — I found this'
-                    : 'Copy contact — This is mine'),
+                onPressed: _contactOwner,
+                icon: const Icon(Icons.message_outlined),
+                label: const Text('Contact owner'),
               ),
             if (_isOwner) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                onPressed: _edit,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit report'),
+              ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(

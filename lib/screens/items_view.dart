@@ -6,6 +6,7 @@ import '../theme.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/item_card.dart';
 import '../widgets/state_views.dart';
+import 'add_item_screen.dart';
 import 'item_detail_screen.dart';
 
 enum _Filter { all, lost, found }
@@ -96,6 +97,13 @@ class _ItemsViewState extends State<ItemsView> {
   Future<void> _onMenu(Item item, ItemMenuAction action) async {
     if (action == ItemMenuAction.delete) {
       await confirmAndDeleteItem(context, item);
+    } else if (action == ItemMenuAction.edit) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => AddItemScreen(item: item),
+        ),
+      );
     } else {
       await _repo.toggleResolved(item.id);
       if (!mounted) return;

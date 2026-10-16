@@ -151,6 +151,25 @@ class ItemRepository {
     await _writeAll([item, ...items]);
   }
 
+  Future<void> update(Item updated) async {
+    final items = await _readAll();
+    final index = items.indexWhere((item) => item.id == updated.id);
+    if (index == -1) throw ApiException('Report no longer exists.');
+
+    final previous = items[index];
+    items[index] = updated;
+    await _writeAll(items);
+
+    // Remove an old locally stored image only after the updated report saves.
+    if (previous.image != null &&
+        previous.image != updated.image &&
+        !previous.hasNetworkImage &&
+        isLocalFilePath(previous.image)) {
+      final file = File(previous.image!);
+      if (await file.exists()) await file.delete();
+    }
+  }
+
   Future<void> delete(String id) async {
     final items = await _readAll();
     final target = items.where((i) => i.id == id).firstOrNull;

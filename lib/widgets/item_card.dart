@@ -5,7 +5,7 @@ import '../theme.dart';
 import 'item_image.dart';
 import 'type_badge.dart';
 
-enum ItemMenuAction { resolve, delete }
+enum ItemMenuAction { edit, resolve, delete }
 
 /// One row in the lost & found list.
 class ItemCard extends StatelessWidget {
@@ -73,24 +73,29 @@ class ItemCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isOwner)
+              if (isOwner) ...[
+                IconButton(
+                  tooltip: 'Delete report',
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () => onMenu(ItemMenuAction.delete),
+                ),
                 PopupMenuButton<ItemMenuAction>(
                   tooltip: 'More options',
                   onSelected: onMenu,
                   itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: ItemMenuAction.edit,
+                      child: Text('Edit'),
+                    ),
                     PopupMenuItem(
                       value: ItemMenuAction.resolve,
                       child: Text(item.resolved
                           ? 'Mark as active'
                           : 'Mark as resolved'),
                     ),
-                    const PopupMenuItem(
-                      value: ItemMenuAction.delete,
-                      child: Text('Delete',
-                          style: TextStyle(color: Colors.red)),
-                    ),
                   ],
                 ),
+              ],
             ],
           ),
         ),

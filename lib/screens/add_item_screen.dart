@@ -13,7 +13,9 @@ import '../widgets/primary_button.dart';
 
 /// Form to report a LOST or FOUND item, with photo upload.
 class AddItemScreen extends StatefulWidget {
-  const AddItemScreen({super.key});
+  const AddItemScreen({super.key, this.item});
+
+  final Item? item;
 
   @override
   State<AddItemScreen> createState() => _AddItemScreenState();
@@ -38,9 +40,22 @@ class _AddItemScreenState extends State<AddItemScreen> {
   void initState() {
     super.initState();
     final user = AuthService.instance.currentUser.value!;
-    _draftKey = 'add_item_draft_${user.id}';
+    final item = widget.item;
+    _draftKey = item == null
+        ? 'add_item_draft_${user.id}'
+        : 'edit_item_draft_${user.id}_${item.id}';
+    _title.text = item?.title ?? '';
+    _description.text = item?.description ?? '';
+    _location.text = item?.location ?? '';
+    if (item != null) {
+      _type = item.type;
+      _category = item.category;
+      _imagePath = item.image;
+    }
     _contact =
-        TextEditingController(text: user.phone.isNotEmpty ? user.phone : user.email);
+        TextEditingController(
+            text: item?.contact ??
+                (user.phone.isNotEmpty ? user.phone : user.email));
     for (final controller in [_title, _description, _location, _contact]) {
       controller.addListener(_scheduleDraftSave);
     }
@@ -53,12 +68,14 @@ class _AddItemScreenState extends State<AddItemScreen> {
     if (raw != null) {
       try {
         final draft = jsonDecode(raw) as Map<String, dynamic>;
-        _title.text = draft['title'] as String? ?? '';
-        _description.text = draft['description'] as String? ?? '';
-        _location.text = draft['location'] as String? ?? '';
+        _title.text = draft['title'] as String? ?? widget.item?.title ?? '';
+        _description.text =
+            draft['description'] as String? ?? widget.item?.description ?? '';
+        _location.text = draft['location'] as String? ?? widget.item?.location ?? '';
         _contact.text = draft['contact'] as String? ?? _contact.text;
         final type = draft['type'] as String?;
         final category = draft['category'] as String?;
+        if (type == ItemType.lost.name) _type = ItemType.lost;
         if (type == ItemType.found.name) _type = ItemType.found;
         if (kCategories.contains(category)) _category = category!;
         _imagePath = draft['image'] as String?;
@@ -124,26 +141,35 @@ class _AddItemScreenState extends State<AddItemScreen> {
     setState(() => _saving = true);
     try {
       final user = AuthService.instance.currentUser.value!;
-      await ItemRepository.instance.add(Item(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
+      final item = widget.item;
+      final updated = Item(
+        id: item?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
         title: _title.text.trim(),
         description: _description.text.trim(),
         category: _category,
         location: _location.text.trim(),
         type: _type,
         image: _imagePath,
-        ownerId: user.id,
-        ownerName: user.fullName,
+        ownerId: item?.ownerId ?? user.id,
+        ownerName: item?.ownerName ?? user.fullName,
         contact: _contact.text.trim(),
-        createdAt: DateTime.now(),
-      ));
+        createdAt: item?.createdAt ?? DateTime.now(),
+        resolved: item?.resolved ?? false,
+      );
+      if (item == null) {
+        await ItemRepository.instance.add(updated);
+      } else {
+        await ItemRepository.instance.update(updated);
+      }
       await _clearDraft();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_type == ItemType.lost
-              ? 'Lost item reported. We hope it turns up!'
-              : 'Found item posted. Thank you for helping!')));
-      Navigator.pop(context);
+          content: Text(item != null
+              ? 'Report updated successfully.'
+              : (_type == ItemType.lost
+                  ? 'Lost item reported. We hope it turns up!'
+                  : 'Found item posted. Thank you for helping!'))));
+      Navigator.pop(context, true);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -158,7 +184,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Widget build(BuildContext context) {
     final isLost = _type == ItemType.lost;
     return Scaffold(
-      appBar: AppBar(title: const Text('Report an Item')),
+      appBar: AppBar(title: Text(widget.item == null ? 'Report an Item' : 'Edit Report')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -264,8 +290,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 ),
                 const SizedBox(height: 24),
                 PrimaryButton(
-                  label: isLost ? 'Submit lost report' : 'Post found item',
-                  icon: Icons.send,
+                  label: widget.item != null
+                      ? 'Save changes'
+                      : (isLost ? 'Submit lost report' : 'Post found item'),
+                  icon: widget.item != null ? Icons.save : Icons.send,
                   loading: _saving,
                   onPressed: _submit,
                 ),
