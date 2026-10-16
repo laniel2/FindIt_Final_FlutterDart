@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/item.dart';
+import 'local_file_support.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -134,7 +133,8 @@ class ItemRepository {
     if (expired.isEmpty) return;
 
     final expiredIds = expired.map((item) => item.id).toSet();
-    await _writeAll(items.where((item) => !expiredIds.contains(item.id)).toList());
+    await _writeAll(
+        items.where((item) => !expiredIds.contains(item.id)).toList());
     for (final item in expired) {
       await _removeStoredImage(item);
     }
@@ -146,8 +146,7 @@ class ItemRepository {
         !isLocalFilePath(item.image)) {
       return;
     }
-    final file = File(item.image!);
-    if (await file.exists()) await file.delete();
+    await deleteLocalFile(item.image!);
   }
 
   /// Loads all items. On first run (or until it succeeds) it also tries to
@@ -162,13 +161,15 @@ class ItemRepository {
         final existing = await _readAll();
         await prefs.setString(
             _itemsKey,
-            jsonEncode([...existing, ...fromApi].map((e) => e.toJson()).toList()));
+            jsonEncode(
+                [...existing, ...fromApi].map((e) => e.toJson()).toList()));
         await prefs.setBool(_seededKey, true);
       } on ApiException catch (e) {
         warning = e.message;
       }
     }
-    final items = (await _readAll()).where((item) => item.deletedAt == null).toList();
+    final items =
+        (await _readAll()).where((item) => item.deletedAt == null).toList();
     if (items.isEmpty && warning != null) throw ApiException(warning);
     return LoadResult(items, warning);
   }
@@ -181,9 +182,7 @@ class ItemRepository {
 
   Future<List<Item>> readDeleted() async {
     await _purgeExpired();
-    return (await _readAll())
-        .where((item) => item.deletedAt != null)
-        .toList();
+    return (await _readAll()).where((item) => item.deletedAt != null).toList();
   }
 
   Future<void> add(Item item) async {
@@ -205,8 +204,7 @@ class ItemRepository {
         previous.image != updated.image &&
         !previous.hasNetworkImage &&
         isLocalFilePath(previous.image)) {
-      final file = File(previous.image!);
-      if (await file.exists()) await file.delete();
+      await deleteLocalFile(previous.image!);
     }
   }
 
@@ -247,7 +245,10 @@ class ItemRepository {
       value != null && value.startsWith('data:');
 
   static bool isLocalFilePath(String? value) =>
-      value != null && value.isNotEmpty && !isDataUri(value) && !value.startsWith('http');
+      value != null &&
+      value.isNotEmpty &&
+      !isDataUri(value) &&
+      !value.startsWith('http');
 
   static Uint8List decodeDataUri(String value) {
     final uri = Uri.tryParse(value);
@@ -268,14 +269,9 @@ class ItemRepository {
       return 'data:$mimeType;base64,${base64Encode(bytes)}';
     }
 
-    final dir = await getApplicationDocumentsDirectory();
     final fileName = file.name.isNotEmpty
         ? file.name
         : 'image_${DateTime.now().microsecondsSinceEpoch}.jpg';
-    final ext = fileName.contains('.') ? fileName.split('.').last : 'jpg';
-    final dest =
-        '${dir.path}/img_${DateTime.now().microsecondsSinceEpoch}.$ext';
-    await File(dest).writeAsBytes(bytes);
-    return dest;
+    return saveLocalFile(bytes, fileName);
   }
 }

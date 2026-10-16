@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/item_repository.dart';
+import '../services/local_file_support.dart';
 import '../theme.dart';
 
 class UserAvatar extends StatelessWidget {
@@ -15,18 +14,19 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasDataImage = imagePath != null && ItemRepository.isDataUri(imagePath!);
+    final hasDataImage =
+        imagePath != null && ItemRepository.isDataUri(imagePath!);
     final hasLocalImage = !kIsWeb &&
         imagePath != null &&
         ItemRepository.isLocalFilePath(imagePath!) &&
-        File(imagePath!).existsSync();
+        localFileExists(imagePath!);
     final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
 
     ImageProvider? backgroundImage;
     if (hasDataImage) {
       backgroundImage = MemoryImage(ItemRepository.decodeDataUri(imagePath!));
     } else if (hasLocalImage) {
-      backgroundImage = FileImage(File(imagePath!));
+      backgroundImage = localFileImageProvider(imagePath!);
     }
 
     return CircleAvatar(

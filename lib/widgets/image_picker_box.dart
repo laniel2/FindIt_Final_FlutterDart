@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/item_repository.dart';
+import '../services/local_file_support.dart';
 import '../theme.dart';
 
 /// Shows a bottom sheet to choose Camera or Gallery. Returns the picked file.
@@ -41,7 +40,8 @@ Future<XFile?> chooseImage(BuildContext context) async {
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Could not open the camera/gallery. Check permissions.')));
+          content:
+              Text('Could not open the camera/gallery. Check permissions.')));
     }
     return null;
   }
@@ -74,12 +74,7 @@ class ImagePickerBox extends StatelessWidget {
                     width: double.infinity,
                     fit: BoxFit.cover,
                   )
-                : Image.file(
-                    File(imagePath!),
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+                : _localPreview(imagePath!),
           ),
           Positioned(
             top: 8,
@@ -125,6 +120,21 @@ class ImagePickerBox extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _localPreview(String path) {
+  final provider = localFileImageProvider(path);
+  if (provider == null) {
+    return Container(
+      height: 200,
+      width: double.infinity,
+      color: AppColors.primarySoft,
+      child: const Icon(Icons.image_not_supported_outlined,
+          color: AppColors.primary, size: 40),
+    );
+  }
+  return Image(
+      image: provider, height: 200, width: double.infinity, fit: BoxFit.cover);
 }
 
 class _RoundButton extends StatelessWidget {

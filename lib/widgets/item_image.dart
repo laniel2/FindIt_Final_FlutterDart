@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/item_repository.dart';
+import '../services/local_file_support.dart';
 import '../theme.dart';
 
 /// Displays a network image (from the API) or a local file (user's photo),
@@ -68,13 +67,17 @@ class ItemImage extends StatelessWidget {
     } else if (kIsWeb) {
       child = _placeholder(Icons.image_not_supported_outlined);
     } else {
-      child = Image.file(
-        File(img),
-        width: width,
-        height: height,
-        fit: fit,
-        errorBuilder: (_, __, ___) => _placeholder(Icons.broken_image_outlined),
-      );
+      final provider = localFileImageProvider(img);
+      child = provider == null
+          ? _placeholder(Icons.image_not_supported_outlined)
+          : Image(
+              image: provider,
+              width: width,
+              height: height,
+              fit: fit,
+              errorBuilder: (_, __, ___) =>
+                  _placeholder(Icons.broken_image_outlined),
+            );
     }
     return ClipRRect(borderRadius: BorderRadius.circular(radius), child: child);
   }
