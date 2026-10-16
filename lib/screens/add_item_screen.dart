@@ -115,6 +115,16 @@ class _AddItemScreenState extends State<AddItemScreen> {
     await prefs.remove(_draftKey);
   }
 
+  void _goBack() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      // A direct browser link to the form has no previous route.
+      navigator.pushNamedAndRemoveUntil('/home', (_) => false);
+    }
+  }
+
   @override
   void dispose() {
     _draftTimer?.cancel();
@@ -161,7 +171,13 @@ class _AddItemScreenState extends State<AddItemScreen> {
       } else {
         await ItemRepository.instance.update(updated);
       }
-      await _clearDraft();
+      // Saving the report is the important operation. A stale draft should
+      // never keep the user stranded after the report was already saved.
+      try {
+        await _clearDraft();
+      } catch (_) {
+        // The next form open can overwrite or clear the stale draft.
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(item != null
@@ -169,7 +185,13 @@ class _AddItemScreenState extends State<AddItemScreen> {
               : (_type == ItemType.lost
                   ? 'Lost item reported. We hope it turns up!'
                   : 'Found item posted. Thank you for helping!'))));
-      Navigator.pop(context, true);
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop(true);
+      } else {
+        // A browser reload directly on /add-item has no previous route.
+        navigator.pushNamedAndRemoveUntil('/home', (_) => false);
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -184,7 +206,15 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Widget build(BuildContext context) {
     final isLost = _type == ItemType.lost;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.item == null ? 'Report an Item' : 'Edit Report')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _goBack,
+        ),
+        title: Text(widget.item == null ? 'Report an Item' : 'Edit Report'),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
