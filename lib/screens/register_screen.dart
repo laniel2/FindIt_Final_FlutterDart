@@ -16,7 +16,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  static const _draftKey = 'register_form_draft';
+  static const _draftKey = 'register_form_draft_v2';
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
@@ -37,14 +37,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _restoreDraft() async {
     final prefs = await SharedPreferences.getInstance();
+    // Remove earlier drafts, which included passwords in plain text.
+    await prefs.remove('register_form_draft');
     final raw = prefs.getString(_draftKey);
     if (raw != null) {
       try {
         final draft = jsonDecode(raw) as Map<String, dynamic>;
         _name.text = draft['name'] as String? ?? '';
         _email.text = draft['email'] as String? ?? '';
-        _password.text = draft['password'] as String? ?? '';
-        _confirm.text = draft['confirm'] as String? ?? '';
       } on FormatException {
         await prefs.remove(_draftKey);
       } on TypeError {
@@ -67,8 +67,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     await prefs.setString(_draftKey, jsonEncode({
       'name': _name.text,
       'email': _email.text,
-      'password': _password.text,
-      'confirm': _confirm.text,
     }));
   }
 

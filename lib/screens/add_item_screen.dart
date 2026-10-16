@@ -162,9 +162,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: Form(
-            key: _formKey,
-            child: Column(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Form(
+                key: _formKey,
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text('What happened?',
@@ -267,6 +270,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   onPressed: _submit,
                 ),
               ],
+                ),
+              ),
             ),
           ),
         ),

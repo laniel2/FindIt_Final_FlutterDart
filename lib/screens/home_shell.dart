@@ -18,13 +18,20 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_titles[_index])),
-      body: IndexedStack(
-        index: _index,
-        children: const [
-          ItemsView(),
-          ItemsView(onlyMine: true),
-          ProfileTab(),
-        ],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          child: SizedBox.expand(
+            child: IndexedStack(
+              index: _index,
+              children: const [
+                ItemsView(),
+                ItemsView(onlyMine: true),
+                ProfileTab(),
+              ],
+            ),
+          ),
+        ),
       ),
       floatingActionButton: _index == 2
           ? null

@@ -16,7 +16,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const _draftKey = 'login_form_draft';
+  static const _draftKey = 'login_form_draft_v2';
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -35,12 +35,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _restoreDraft() async {
     final prefs = await SharedPreferences.getInstance();
+    // Remove earlier drafts, which included the password in plain text.
+    await prefs.remove('login_form_draft');
     final raw = prefs.getString(_draftKey);
     if (raw != null) {
       try {
         final draft = jsonDecode(raw) as Map<String, dynamic>;
         _email.text = draft['email'] as String? ?? '';
-        _password.text = draft['password'] as String? ?? '';
       } on FormatException {
         await prefs.remove(_draftKey);
       } on TypeError {
@@ -62,7 +63,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_draftKey, jsonEncode({
       'email': _email.text,
-      'password': _password.text,
     }));
   }
 
