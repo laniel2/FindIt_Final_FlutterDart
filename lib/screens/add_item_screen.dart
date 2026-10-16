@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/item.dart';
 import '../services/auth_service.dart';
 import '../services/item_repository.dart';
@@ -26,17 +30,80 @@ class _AddItemScreenState extends State<AddItemScreen> {
   String _category = kCategories.first;
   String? _imagePath;
   bool _saving = false;
+  bool _draftReady = false;
+  Timer? _draftTimer;
+  late final String _draftKey;
 
   @override
   void initState() {
     super.initState();
     final user = AuthService.instance.currentUser.value!;
+    _draftKey = 'add_item_draft_${user.id}';
     _contact =
         TextEditingController(text: user.phone.isNotEmpty ? user.phone : user.email);
+    for (final controller in [_title, _description, _location, _contact]) {
+      controller.addListener(_scheduleDraftSave);
+    }
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftKey);
+    if (raw != null) {
+      try {
+        final draft = jsonDecode(raw) as Map<String, dynamic>;
+        _title.text = draft['title'] as String? ?? '';
+        _description.text = draft['description'] as String? ?? '';
+        _location.text = draft['location'] as String? ?? '';
+        _contact.text = draft['contact'] as String? ?? _contact.text;
+        final type = draft['type'] as String?;
+        final category = draft['category'] as String?;
+        if (type == ItemType.found.name) _type = ItemType.found;
+        if (kCategories.contains(category)) _category = category!;
+        _imagePath = draft['image'] as String?;
+      } on FormatException {
+        await prefs.remove(_draftKey);
+      } on TypeError {
+        await prefs.remove(_draftKey);
+      }
+    }
+    _draftReady = true;
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleDraftSave() {
+    if (!_draftReady || _saving) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 300), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    if (!_draftReady || _saving) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_draftKey, jsonEncode({
+      'title': _title.text,
+      'description': _description.text,
+      'location': _location.text,
+      'contact': _contact.text,
+      'type': _type.name,
+      'category': _category,
+      'image': _imagePath,
+    }));
+  }
+
+  Future<void> _clearDraft() async {
+    _draftTimer?.cancel();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftKey);
   }
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
+    for (final controller in [_title, _description, _location, _contact]) {
+      controller.removeListener(_scheduleDraftSave);
+    }
     _title.dispose();
     _description.dispose();
     _location.dispose();
@@ -49,6 +116,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
     if (file == null) return;
     final saved = await ItemRepository.instance.savePickedImage(file);
     setState(() => _imagePath = saved);
+    _scheduleDraftSave();
   }
 
   Future<void> _submit() async {
@@ -69,6 +137,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
         contact: _contact.text.trim(),
         createdAt: DateTime.now(),
       ));
+      await _clearDraft();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_type == ItemType.lost
@@ -114,7 +183,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
                         label: Text('I found it')),
                   ],
                   selected: {_type},
-                  onSelectionChanged: (s) => setState(() => _type = s.first),
+                  onSelectionChanged: (s) {
+                    setState(() => _type = s.first);
+                    _scheduleDraftSave();
+                  },
                 ),
                 const SizedBox(height: 20),
                 const Text('Photo',
@@ -124,7 +196,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 ImagePickerBox(
                   imagePath: _imagePath,
                   onPick: _pickImage,
-                  onRemove: () => setState(() => _imagePath = null),
+                  onRemove: () {
+                    setState(() => _imagePath = null);
+                    _scheduleDraftSave();
+                  },
                 ),
                 const SizedBox(height: 20),
                 AppTextField(
@@ -147,7 +222,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
                       .map((c) => ChoiceChip(
                             label: Text(c),
                             selected: _category == c,
-                            onSelected: (_) => setState(() => _category = c),
+                            onSelected: (_) {
+                              setState(() => _category = c);
+                              _scheduleDraftSave();
+                            },
                           ))
                       .toList(),
                 ),

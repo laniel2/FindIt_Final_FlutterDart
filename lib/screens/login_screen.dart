@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../widgets/app_text_field.dart';
@@ -12,14 +16,67 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const _draftKey = 'login_form_draft';
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
   String? _error;
+  bool _draftReady = false;
+  Timer? _draftTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _email.addListener(_scheduleDraftSave);
+    _password.addListener(_scheduleDraftSave);
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftKey);
+    if (raw != null) {
+      try {
+        final draft = jsonDecode(raw) as Map<String, dynamic>;
+        _email.text = draft['email'] as String? ?? '';
+        _password.text = draft['password'] as String? ?? '';
+      } on FormatException {
+        await prefs.remove(_draftKey);
+      } on TypeError {
+        await prefs.remove(_draftKey);
+      }
+    }
+    _draftReady = true;
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleDraftSave() {
+    if (!_draftReady || _loading) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 250), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    if (!_draftReady || _loading) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_draftKey, jsonEncode({
+      'email': _email.text,
+      'password': _password.text,
+    }));
+  }
+
+  Future<void> _clearDraft() async {
+    _draftTimer?.cancel();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftKey);
+  }
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
+    _email.removeListener(_scheduleDraftSave);
+    _password.removeListener(_scheduleDraftSave);
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -33,6 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final user = await AuthService.instance.login(_email.text, _password.text);
+      await _clearDraft();
       if (!mounted) return;
       Navigator.pushReplacementNamed(
           context, user.profileComplete ? '/home' : '/profile-setup');

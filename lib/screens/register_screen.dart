@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../widgets/app_text_field.dart';
@@ -12,15 +16,74 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  static const _draftKey = 'register_form_draft';
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
   bool _loading = false;
+  bool _draftReady = false;
+  Timer? _draftTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final controller in [_name, _email, _password, _confirm]) {
+      controller.addListener(_scheduleDraftSave);
+    }
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftKey);
+    if (raw != null) {
+      try {
+        final draft = jsonDecode(raw) as Map<String, dynamic>;
+        _name.text = draft['name'] as String? ?? '';
+        _email.text = draft['email'] as String? ?? '';
+        _password.text = draft['password'] as String? ?? '';
+        _confirm.text = draft['confirm'] as String? ?? '';
+      } on FormatException {
+        await prefs.remove(_draftKey);
+      } on TypeError {
+        await prefs.remove(_draftKey);
+      }
+    }
+    _draftReady = true;
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleDraftSave() {
+    if (!_draftReady || _loading) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 250), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    if (!_draftReady || _loading) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_draftKey, jsonEncode({
+      'name': _name.text,
+      'email': _email.text,
+      'password': _password.text,
+      'confirm': _confirm.text,
+    }));
+  }
+
+  Future<void> _clearDraft() async {
+    _draftTimer?.cancel();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftKey);
+  }
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
+    for (final controller in [_name, _email, _password, _confirm]) {
+      controller.removeListener(_scheduleDraftSave);
+    }
     _name.dispose();
     _email.dispose();
     _password.dispose();
@@ -37,6 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _email.text,
         password: _password.text,
       );
+      await _clearDraft();
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Account created! Let’s set up your profile.')));

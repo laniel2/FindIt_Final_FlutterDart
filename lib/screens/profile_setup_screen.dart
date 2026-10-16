@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import '../services/item_repository.dart';
@@ -29,6 +33,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   bool _saving = false;
   bool _isEditing = false;
   bool _initialised = false;
+  bool _draftReady = false;
+  Timer? _draftTimer;
+  late String _draftKey;
 
   @override
   void didChangeDependencies() {
@@ -37,15 +44,71 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     _initialised = true;
     _isEditing = ModalRoute.of(context)?.settings.arguments == true;
     _user = AuthService.instance.currentUser.value!;
+    _draftKey = 'profile_draft_${_user.id}_${_isEditing ? 'edit' : 'setup'}';
     _name = TextEditingController(text: _user.fullName);
     _studentId = TextEditingController(text: _user.studentId);
     _course = TextEditingController(text: _user.course);
     _phone = TextEditingController(text: _user.phone);
     _avatarPath = _user.avatarPath;
+    for (final controller in [_name, _studentId, _course, _phone]) {
+      controller.addListener(_scheduleDraftSave);
+    }
+    _restoreDraft();
+  }
+
+  Future<void> _restoreDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftKey);
+    if (raw != null) {
+      try {
+        final draft = jsonDecode(raw) as Map<String, dynamic>;
+        _name.text = draft['name'] as String? ?? _name.text;
+        _studentId.text = draft['studentId'] as String? ?? _studentId.text;
+        _course.text = draft['course'] as String? ?? _course.text;
+        _phone.text = draft['phone'] as String? ?? _phone.text;
+        _avatarPath = draft['avatar'] as String? ?? _avatarPath;
+      } on FormatException {
+        await prefs.remove(_draftKey);
+      } on TypeError {
+        await prefs.remove(_draftKey);
+      }
+    }
+    _draftReady = true;
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleDraftSave() {
+    if (!_draftReady || _saving) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 250), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    if (!_draftReady || _saving) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_draftKey, jsonEncode({
+      'name': _name.text,
+      'studentId': _studentId.text,
+      'course': _course.text,
+      'phone': _phone.text,
+      'avatar': _avatarPath,
+    }));
+  }
+
+  Future<void> _clearDraft() async {
+    _draftTimer?.cancel();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftKey);
   }
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
+    if (_initialised) {
+      for (final controller in [_name, _studentId, _course, _phone]) {
+        controller.removeListener(_scheduleDraftSave);
+      }
+    }
     _name.dispose();
     _studentId.dispose();
     _course.dispose();
@@ -58,6 +121,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     if (file == null) return;
     final saved = await ItemRepository.instance.savePickedImage(file);
     setState(() => _avatarPath = saved);
+    _scheduleDraftSave();
   }
 
   Future<void> _save() async {
@@ -72,6 +136,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         avatarPath: _avatarPath,
         profileComplete: true,
       ));
+      await _clearDraft();
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Profile saved')));
