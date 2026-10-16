@@ -91,8 +91,6 @@ class ItemRepository {
         }
       }
       return items;
-    } on SocketException {
-      throw ApiException('No internet connection. Check your network.');
     } on TimeoutException {
       throw ApiException('The request timed out. Please try again.');
     } on http.ClientException {
